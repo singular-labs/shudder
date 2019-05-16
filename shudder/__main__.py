@@ -45,7 +45,7 @@ def run_commands():
             logging.info('Running command: %s' % command)
             process = subprocess.Popen(command)
             while process.poll() is None:
-                time.sleep(5)
+                time.sleep(30)
                 """Send a heart beat to aws"""
                 logging.info("sending a heart beat to aws")
                 queue.record_lifecycle_action_heartbeat(message)
