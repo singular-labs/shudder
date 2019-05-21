@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Start polling of SQS and metadata."""
+import time
 import shudder.queue as queue
 import shudder.metadata as metadata
 from shudder.config import CONFIG, LOG_FILE
@@ -27,7 +28,8 @@ from requests.exceptions import ConnectionError
 
 logging.basicConfig(filename=LOG_FILE, format='%(asctime)s %(levelname)s:%(message)s', level=logging.INFO)
 
-HEARTBEAT_METRIC = "attribution_gate.graceful_shutdown.heartbeat"
+EVENT_COUNT_METRIC = "attribution_gate.graceful_shutdown.event.count"
+EVENT_TIME_METRIC = "attribution_gate.graceful_shutdown.event.time"
 
 
 def receive_signal(signum, stack):
@@ -38,17 +40,28 @@ def receive_signal(signum, stack):
         logging.info('Caught signal %s, ignoring.' % (str(signum)))
 
 
+def summary_process(start_time):
+    statsd.gauge(EVENT_COUNT_METRIC, 1, ["event_name:finish_process"])
+    total_time = time.time() - start_time
+    statsd.gauge(EVENT_TIME_METRIC, total_time, ["event_name:duration_process"])
+
+
 def run_commands():
+    start_time = time.time()
     for command in CONFIG["commands"]:
         try:
-            statsd.gauge(HEARTBEAT_METRIC, 1)
-            logging.info('Running command: %s' % command)
-            process = subprocess.Popen(command)
-            while process.poll() is None:
-                time.sleep(30)
-                """Send a heart beat to aws"""
-                logging.info("sending a heart beat to aws")
-                queue.record_lifecycle_action_heartbeat(message)
+            statsd.gauge(EVENT_COUNT_METRIC, 1, ["event_name:heartbeat"])
+
+            if command == "RUN SUMMARY PROCESS":
+                summary_process(start_time)
+            else:
+                logging.info('Running command: %s' % command)
+                process = subprocess.Popen(command)
+                while process.poll() is None:
+                    time.sleep(5)
+                    """Send a heart beat to aws"""
+                    logging.info("sending a heart beat to aws")
+                    queue.record_lifecycle_action_heartbeat(message)
         except Exception:
             logging.exception("failed running command %s" % command)
 
@@ -65,9 +78,11 @@ if __name__ == '__main__':
     statsd = DogStatsd()
     while True:
         try:
-            statsd.gauge(HEARTBEAT_METRIC, 1)
+            statsd.gauge(EVENT_COUNT_METRIC, 1, ["event_name:heartbeat"])
             message = queue.poll_queue(sqs_connection, sqs_queue)
+
             if message or metadata.poll_instance_metadata():
+                statsd.gauge(EVENT_COUNT_METRIC, 1, ["event_name:start_process"])
                 logging.info("starting graceful shutdown..")
                 if 'endpoint' in CONFIG:
                     requests.get(CONFIG["endpoint"])
