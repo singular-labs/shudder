@@ -24,6 +24,7 @@ logging.basicConfig(filename=LOG_FILE,format='%(asctime)s %(levelname)s:%(messag
 termination_time = "http://169.254.169.254/latest/meta-data/spot/termination-time"
 instance_id = "http://169.254.169.254/latest/meta-data/instance-id"
 
+
 def poll_instance_metadata():
     """Check instance metadata for a scheduled termination"""
     try:
@@ -31,6 +32,7 @@ def poll_instance_metadata():
       return r.status_code < 400
     except:
       logging.exception('Request to ' + termination_time + ' failed.')
+
 
 def get_instance_id():
     """Check instance metadata for an instance id"""
