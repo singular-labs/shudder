@@ -52,7 +52,7 @@ def run_commands():
         try:
             statsd.gauge(EVENT_COUNT_METRIC, 1, ["event_name:heartbeat"])
 
-            if command == "RUN SUMMARY PROCESS":
+            if command[0] == "RUN SUMMARY PROCESS":
                 summary_process(start_time)
             else:
                 logging.info('Running command: %s' % command)
